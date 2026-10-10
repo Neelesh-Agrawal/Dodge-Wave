@@ -1,4 +1,4 @@
-import {clamp,randomSource,LIMIT_X,LIMIT_Y} from './rules.mjs?v=solid-1';
+import {clamp,randomSource,LIMIT_X,LIMIT_Y} from './rules.mjs?v=cosmic-3';
 export const FINISH_DISTANCE=12000, WAVE_LENGTH=1000, BOOST_MULTIPLIER=2.05;
 export const waveAt=distance=>Math.min(12,1+Math.floor(Math.max(0,distance)/WAVE_LENGTH));
 export const speedAt=wave=>46+Math.min(11,Math.max(0,wave-1))*3.6;

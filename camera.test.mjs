@@ -28,7 +28,7 @@ for (const [w,h] of [[390,844],[360,800],[1440,900]]) {
 
    camera.position.set(behind.x-origin.x+x*.32,behind.y-origin.y+3.2+y*.16,z);
 
-   assert.ok(((camera.position.x-(behind.x-origin.x))/12)**2+((camera.position.y-(behind.y-origin.y))/8.6)**2<.6,'Chase camera must stay safely inside tunnel');
+   assert.ok(((camera.position.x-(behind.x-origin.x))/12)**2+((camera.position.y-(behind.y-origin.y))/8.6)**2<.6,'Chase camera must stay within the orbital guide hoops');
 
    camera.lookAt(ahead.x-origin.x+x*.1,ahead.y-origin.y+y*.08,-34); camera.rotateZ(bank*.75); camera.updateMatrixWorld();
 
@@ -52,30 +52,14 @@ for (const [w,h] of [[390,844],[360,800],[1440,900]]) {
 
 
 
-// The near roof remains solid, with no hidden/translucent cutaway sections.
-const world={dummy:new THREE.Object3D(),curveCache:new Map(),distance:1400,courseCenter:FlightWorld.prototype.courseCenter,courseOffset:FlightWorld.prototype.courseOffset,courseRotation:FlightWorld.prototype.courseRotation};
-let matrix;const mesh={setMatrixAt(i,m){matrix=m.clone();}};
-for(const z of [-16,-7,0,4,20]) {FlightWorld.prototype.setInstance.call(world,mesh,0,0,8,z,9.8,.16,8.8);assert.ok(matrix.determinant()>0,`Roof section ${z} must remain solid`);}
-
-// Exercise the actual indexed corridor geometry and raycast it, without WebGL.
-Object.assign(world,{materials:{dark:new THREE.MeshStandardMaterial()},scene:new THREE.Scene(),updateTunnelSurface:FlightWorld.prototype.updateTunnelSurface});
-FlightWorld.prototype.makeTunnelSurface.call(world);
-const surface=world.tunnelSurface, positions=surface.geometry.attributes.position;
-assert.equal(surface.material.transparent,false);assert.equal(surface.material.opacity,1);
-assert.equal(surface.geometry.index.count,(world.tunnelRows-1)*world.tunnelRadial*6);
-const raycaster=new THREE.Raycaster(), direction=new THREE.Vector3();
-for(let distance=0;distance<=FINISH_DISTANCE;distance+=200) {
- world.distance=distance;world.updateTunnelSurface();surface.updateMatrixWorld(true);
- for(let row=0;row<world.tunnelRows;row++) {
-  const first=row*(world.tunnelRadial+1),last=first+world.tunnelRadial;
-  assert.equal(positions.getX(first),positions.getX(last));assert.equal(positions.getY(first),positions.getY(last));assert.equal(positions.getZ(first),positions.getZ(last));
- }
- for(const [w,h] of [[390,844],[360,800],[1440,900]]) for(const nitro of [0,1]) for(const x of [-6.8,6.8]) for(const y of [-3.6,3.6]) {
-  const fov=(w<h?70:59)+nitro*15,z=Math.max(20,4+11.5/(Math.tan(fov*Math.PI/360)*(w/h))),offset=world.courseOffset(z);
-  const camera=new THREE.Vector3(offset.x+x*.32,offset.y+3.2+y*.16,z),target=new THREE.Vector3(x,y,4);
-  direction.subVectors(target,camera);const length=direction.length();direction.normalize();
-  raycaster.set(camera,direction);raycaster.far=length-.1;
-  assert.equal(raycaster.intersectObject(surface).length,0,`Solid wall occludes ship at ${distance}m ${w}x${h}, ${x},${y}, nitro ${nitro}`);
- }
-}
-console.log('Opaque continuous tunnel seam, full geometry and camera-to-ship visibility pass');
+// Open orbital architecture must not enclose the celestial background. Check
+// the real station builder and verify hidden legacy geometry is never updated.
+const world={dummy:new THREE.Object3D(),curveCache:new Map(),distance:1400,nitro:0,courseCenter:FlightWorld.prototype.courseCenter,courseOffset:FlightWorld.prototype.courseOffset,courseRotation:FlightWorld.prototype.courseRotation,setInstance:FlightWorld.prototype.setInstance};
+Object.assign(world,{boxGeometry:new THREE.BoxGeometry(),materials:{armor:new THREE.MeshStandardMaterial(),dark:new THREE.MeshStandardMaterial(),copper:new THREE.MeshStandardMaterial(),cyan:new THREE.MeshStandardMaterial(),amber:new THREE.MeshStandardMaterial()},scene:new THREE.Scene(),makeTunnelSurface(){this.tunnelSurface=new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshBasicMaterial());},updateTunnelSurface(){throw Error('Hidden surface must not rebuild every frame');}});
+FlightWorld.prototype.makeStation.call(world);
+assert.equal(world.tunnelSurface.visible,false,'The racing course must remain open to space');
+assert.equal(world.ribs.count,20);assert.equal(world.segmentSpacing,12);
+world.streaks={geometry:{attributes:{position:{array:new Float32Array(6)}}},material:{opacity:0}};world.streakData=[{x:0,y:0,z:-60}];
+FlightWorld.prototype.updateArchitecture.call(world,.016,50,0);
+for(const mesh of [world.ribs,world.lights,world.pipes,world.cableLights]) for(const value of mesh.instanceMatrix.array) assert.ok(Number.isFinite(value),'Orbital track transforms remain finite');
+console.log('Open orbital course, stable track transforms and hidden-surface budget pass');

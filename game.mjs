@@ -1,7 +1,7 @@
-import {FlightWorld} from './flight-world.mjs?v=solid-1';
-import {FlightHazards} from './flight-hazards.mjs?v=solid-1';
-import {FlightRace,FINISH_DISTANCE,speedAt,BOOST_MULTIPLIER,driftAt,resolveVehicleCollisions} from './race.mjs?v=solid-1';
-import {PLAYER_Z,LIMIT_X,LIMIT_Y,clamp,crossing,irisCollision,laserClearance,rockClearance,frameDelta} from './rules.mjs?v=solid-1';
+import {FlightWorld} from './flight-world.mjs?v=cosmic-3';
+import {FlightHazards} from './flight-hazards.mjs?v=cosmic-3';
+import {FlightRace,FINISH_DISTANCE,speedAt,BOOST_MULTIPLIER,driftAt,resolveVehicleCollisions} from './race.mjs?v=cosmic-3';
+import {PLAYER_Z,LIMIT_X,LIMIT_Y,clamp,crossing,irisCollision,laserClearance,rockClearance,frameDelta} from './rules.mjs?v=cosmic-3';
 const $=id=>document.getElementById(id),canvas=$('world');
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const race=new FlightRace();
@@ -23,7 +23,7 @@ function home(){if(state==='error')return;state='menu';clearInput();hazards.clea
 function openSettings(){if(state==='error'||state==='briefing')return;if(state==='settings'){closeSettings();return;}returnTo=state;state='settings';clearInput();stopAudio();panels();($('help-panel').hidden?$('tab-options'):$('tab-help')).focus();}
 function closeSettings(){if(state!=='settings')return;state=returnTo;panels();lastFrame=performance.now();if(state==='playing')canvas.focus({preventScroll:true});else $('settings-open').focus();}
 function selectTab(help){$('tab-help').setAttribute('aria-selected',String(help));$('tab-options').setAttribute('aria-selected',String(!help));$('help-panel').hidden=!help;$('options-panel').hidden=help;}
-function finish(){state='results';stopAudio();clearInput();const completed=race.finished;score=Math.floor(score+(completed?Math.max(500,2500-(race.rank-1)*600):0));const record=score>best();try{if(record)localStorage.setItem(STORAGE,score);}catch{}$('result-title').textContent=completed?race.rank===1?'First across the line!':`Finished ${['','1st','2nd','3rd','4th','5th','6th','7th','8th'][race.rank]}`:'Out of lives';$('final-score').textContent=score.toLocaleString();$('record').textContent=record?'PERSONAL BEST':'POINTS';$('flight-summary').textContent=`Wave ${race.wave} · ${(race.distance/1000).toFixed(1)} km flown · ${rings} rings collected. ${completed?'You reached the end of the tunnel.':'Steer into bends, find blue openings and save nitro for overtaking.'}`;panels();$('retry').focus();}
+function finish(){state='results';stopAudio();clearInput();const completed=race.finished;score=Math.floor(score+(completed?Math.max(500,2500-(race.rank-1)*600):0));const record=score>best();try{if(record)localStorage.setItem(STORAGE,score);}catch{}$('result-title').textContent=completed?race.rank===1?'First across the line!':`Finished ${['','1st','2nd','3rd','4th','5th','6th','7th','8th'][race.rank]}`:'Out of lives';$('final-score').textContent=score.toLocaleString();$('record').textContent=record?'PERSONAL BEST':'POINTS';$('flight-summary').textContent=`Wave ${race.wave} · ${(race.distance/1000).toFixed(1)} km flown · ${rings} rings collected. ${completed?'You reached the finish line.':'Steer into bends, find blue openings and save nitro for overtaking.'}`;panels();$('retry').focus();}
 function boost(){if(state!=='playing'||energy<99.9||phase>0)return;phase=2.4;energy=0;invulnerable=Math.max(invulnerable,2.5);note(140,.6,1200);world.burst(player.x,player.y,PLAYER_Z,0x59eaff,16);}
 function hit(){if(invulnerable>0||phase>0||race.time<3)return;hull--;invulnerable=1.5;shake=reduced?0:.7;world.burst(player.x,player.y,PLAYER_Z,0xff7e3f,24);note(110,.4,30);if(hull<=0)finish();else announce(`${hull} ${hull===1?'life':'lives'} left`);}
 function graze(){nearMisses++;score+=200;energy=clamp(energy+15,0,100);note(950,.1,1200);}

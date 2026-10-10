@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import { clamp, makeExpeditionPattern } from './rules.mjs?v=solid-1';
+import { clamp, makeExpeditionPattern } from './rules.mjs?v=cosmic-3';
 const TAU = Math.PI * 2;
 export class FlightHazards {
   constructor(world) { this.world = world; this.scene = world.scene; this.live = []; this.rockGeometry = new THREE.IcosahedronGeometry(1, 1); this.rockMaterial = new THREE.MeshStandardMaterial({ color: 0x514a48, roughness: .9, metalness: .15 }); this.pickupGeometry = new THREE.TorusGeometry(.82, .07, 8, 40); }
@@ -13,7 +13,7 @@ export class FlightHazards {
   makeRing(h) { const pickup = new THREE.Mesh(this.pickupGeometry, this.world.materials.cyan); pickup.position.set(h.x, h.y, 0); h.group.add(pickup); h.pickup = pickup; h.group.add(this.world.glow(0x45f9e0, 3.2, h.x, h.y, 0)); }
   makeIris(h) {
     const w = this.world, frame = new THREE.Group(); frame.position.set(h.x, h.y, 0); h.group.add(frame); h.frame = frame;
-    if(h.wave){const wall=new THREE.Shape();wall.moveTo(-16,-11);wall.lineTo(16,-11);wall.lineTo(16,11);wall.lineTo(-16,11);wall.closePath();const hole=new THREE.Path();hole.absarc(h.x,h.y,6.15,0,TAU,true);wall.holes.push(hole);const bulkhead=new THREE.Mesh(new THREE.ExtrudeGeometry(wall,{depth:.3,bevelEnabled:false,curveSegments:40,steps:1}),w.materials.dark);bulkhead.position.z=-.35;h.group.add(bulkhead);}
+    if(h.wave){const wall=new THREE.Shape();wall.absellipse(0,0,14,10,0,TAU,false);const hole=new THREE.Path();hole.absarc(h.x,h.y,6.15,0,TAU,true);wall.holes.push(hole);const bulkhead=new THREE.Mesh(new THREE.ExtrudeGeometry(wall,{depth:.3,bevelEnabled:false,curveSegments:40,steps:1}),w.materials.dark);bulkhead.position.z=-.35;h.group.add(bulkhead);}
     frame.add(w.torus(6.2, .28, w.materials.armor, 80)); frame.add(w.torus(5.8, .1, w.materials.amber, 80)); frame.add(w.torus(6.5, .1, w.materials.dark, 80));
     // Six authored annular petals leave a circular opening; every surface has real thickness.
     for (let i = 0; i < 6; i++) {

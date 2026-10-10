@@ -3,8 +3,8 @@ import { EffectComposer } from './vendor/addons/postprocessing/EffectComposer.js
 import { RenderPass } from './vendor/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/addons/postprocessing/OutputPass.js';
-import { randomSource, clamp } from './rules.mjs?v=solid-1';
-import { courseCenter as routeCenter, courseSlope } from './race.mjs?v=solid-1';
+import { randomSource, clamp } from './rules.mjs?v=cosmic-3';
+import { courseCenter as routeCenter, courseSlope } from './race.mjs?v=cosmic-3';
 const TAU = Math.PI * 2;
 export class FlightWorld {
   constructor(canvas, { quality = true, reduced = false } = {}) {
@@ -15,7 +15,7 @@ export class FlightWorld {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.setClearColor(0x030b16);
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.Fog(0x071522, 140, 260);
+    this.scene.fog = new THREE.Fog(0x050918, 125, 275);
     this.camera = new THREE.PerspectiveCamera(59, 1, .15, 650);
     this.camera.position.set(-2.6, 4.8, 18);
     this.look = new THREE.Vector3(0, 0, -32);
@@ -65,8 +65,7 @@ export class FlightWorld {
   box(w, h, d, material, x = 0, y = 0, z = 0) { const mesh = new THREE.Mesh(this.boxGeometry, material); mesh.scale.set(w, h, d); mesh.position.set(x, y, z); return mesh; }
   torus(r, tube, material, segments = 64, arc = TAU) { return new THREE.Mesh(new THREE.TorusGeometry(r, tube, 8, segments, arc), material); }
   glow(color, size, x = 0, y = 0, z = 0) { const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTexture, color, transparent: true, opacity: .75, blending: THREE.AdditiveBlending, depthWrite: false })); sprite.scale.setScalar(size); sprite.position.set(x, y, z); return sprite; }
-  // One continuous station interior: its walls, route lights, hazards and racers
-  // share the same centerline instead of overlaying unrelated horizon scenes.
+  // Orbital hoops, guide rails, hazards and racers share one curved centerline.
   courseCenter(meters) { return routeCenter(meters); }
   courseOffset(z, distance = this.distance) {
     const origin = this.courseCenter(distance), point = this.courseCenter(distance + 4 - z);
@@ -77,7 +76,55 @@ export class FlightWorld {
     return { x: Math.atan2(b.y - a.y, 1), y: -Math.atan2(b.x - a.x, 1) };
   }
   makeHorizon() {
-    this.scene.background = new THREE.Color(0x071522);
+    this.scene.background = new THREE.Color(0x030611);
+    // A single distant sky pass leaves the racing corridor open to space. The
+    // accretion disc and its bent image are analytical, with no texture fetches
+    // or costly ray marching; the star field stays crisp in either quality mode.
+    this.skyMaterial = new THREE.ShaderMaterial({
+      uniforms: { aspect: { value: 1 }, time: { value: 0 } }, depthWrite: false, depthTest: false, fog: false,
+      vertexShader: 'varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+      fragmentShader: `
+        varying vec2 vUv; uniform float aspect; uniform float time;
+        float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+        float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+        float stars(vec2 p,float grid,float cutoff){vec2 cell=floor(p*grid),local=fract(p*grid)-.5;float seed=hash(cell);vec2 offset=vec2(hash(cell+7.1),hash(cell+19.7))*.65-.325;float d=length(local-offset);return step(cutoff,seed)*(exp(-d*d*850.)*.85+exp(-d*d*36.)*.055);}
+        void main(){
+          vec2 p=(vUv-.5)*vec2(aspect,1.);
+          float cloud=noise(p*3.6+vec2(3.7,8.1))*.6+noise(p*8.3+4.)*.28+noise(p*17.1)*.12;
+          float band=exp(-pow((p.y+p.x*.25+.19)*3.1,2.));
+          vec3 color=vec3(.009,.016,.039)+vec3(.037,.022,.083)*cloud*band;
+          color+=vec3(.012,.028,.053)*pow(cloud,3.)*2.;
+          float st=stars(p+2.,155.,.978)+stars(p+8.,83.,.988)*1.4;
+          color+=vec3(.68,.79,1.)*st;
+          // Keep the landmark visible above the flight line on narrow screens.
+          float wide=smoothstep(.65,1.2,aspect);
+          float centerX=mix(aspect*.07,min(aspect*.23,.33),wide);
+          vec2 q=(p-vec2(centerX,.235))*mix(1.85,1.,smoothstep(.55,1.25,aspect));
+          float angle=-.14; q=mat2(cos(angle),-sin(angle),sin(angle),cos(angle))*q;
+          float r=length(q), theta=atan(q.y,q.x);
+          float discR=length(vec2(q.x,q.y*5.1));
+          float banding=.73+.15*sin(discR*590.+theta*5.-time*.12)+.12*sin(discR*237.-theta*9.);
+          float disc=smoothstep(.115,.142,discR)*(1.-smoothstep(.28,.41,discR));
+          float hot=exp(-pow((discR-.153)/.023,2.));
+          vec3 ember=mix(vec3(.62,.12,.025),vec3(1.,.67,.27),hot);
+          color+=ember*disc*banding*.9;
+          color+=vec3(.31,.105,.028)*exp(-pow((discR-.19)/.12,2.))*.3;
+          // Photon ring and the lensed rear disc wrapping over the black core.
+          float lens=exp(-pow((r-.128)/.014,2.));
+          float photon=exp(-pow((r-.1145)/.0028,2.));
+          float upper=smoothstep(-.035,.05,q.y);
+          color+=vec3(1.,.49,.12)*lens*(.32+upper*.85)*( .86+.14*sin(theta*41.));
+          color+=vec3(1.,.86,.54)*photon*.95;
+          color+=vec3(.24,.075,.022)*exp(-pow((r-.13)/.052,2.));
+          color*=smoothstep(.108,.113,r);
+          // The near side of the disc crosses in front of the lower silhouette.
+          float front=disc*(1.-smoothstep(-.035,-.005,q.y));
+          color+=ember*front*banding*.6;
+          gl_FragColor=vec4(color,1.);
+        }`
+    });
+    this.sky = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.skyMaterial); this.sky.position.z = -500; this.sky.renderOrder = -100; this.sky.frustumCulled = false;
+    this.camera.add(this.sky); this.scene.add(this.camera);
     this.finishGate = new THREE.Group(); this.finishGate.visible = false; this.scene.add(this.finishGate);
     const material = new THREE.MeshStandardMaterial({ color: 0xf1e9c7, emissive: 0xffd97a, emissiveIntensity: 1.4, roughness: .3 });
     const ring = this.torus(9, .45, material, 80); ring.scale.y = .82; this.finishGate.add(ring);
@@ -88,12 +135,11 @@ export class FlightWorld {
     for (const side of [-1, 1]) this.finishGate.add(this.box(.25, 13, .6, material, side * 9));
   }
   makeStation() {
-    this.rng = randomSource(6917); const count = 29; this.segmentPositions = Array.from({ length: count }, (_, i) => 24 - i * 8);
-    const ringGeo = new THREE.TorusGeometry(12.7, .23, 8, 72);
+    this.rng = randomSource(6917); const count = 20; this.segmentSpacing = 12; this.segmentPositions = Array.from({ length: count }, (_, i) => 24 - i * this.segmentSpacing);
+    const ringGeo = new THREE.TorusGeometry(12.7, .12, 6, 64);
     this.ribs = new THREE.InstancedMesh(ringGeo, this.materials.armor, count); this.ribs.frustumCulled = false; this.scene.add(this.ribs);
-    // A watertight opaque surface follows the same centerline as the racers.
-    // Its fixed local topology never recycles, fades or cuts away near the camera.
-    this.makeTunnelSurface();
+    // No enclosed wall or fading panels: open rings reveal the cosmic horizon.
+    this.makeTunnelSurface(); this.tunnelSurface.visible = false;
     this.lights = new THREE.InstancedMesh(this.boxGeometry, this.materials.cyan, count * 8); this.lights.frustumCulled = false; this.scene.add(this.lights);
     this.dummy = new THREE.Object3D();
     // Sectioned cable trunks follow the actual bends, with no straight pipes
@@ -192,21 +238,21 @@ export class FlightWorld {
     d.scale.set(sx, sy, sz); d.updateMatrix(); mesh.setMatrixAt(index, d.matrix);
   }
   updateArchitecture(dt, speed, stage) {
-    this.curveCache.clear(); this.updateTunnelSurface(); const count = this.segmentPositions.length;
+    this.curveCache.clear(); const count = this.segmentPositions.length, spacing = this.segmentSpacing;
     for (let i = 0; i < count; i++) {
       // Absolute-distance placement means pause, reset and changing speed cannot
       // detach the tunnel from its hazards or competitors.
-      const z = 24 - (((i * 8 - this.distance) % (count * 8) + count * 8) % (count * 8)); this.segmentPositions[i] = z;
+      const z = 24 - (((i * spacing - this.distance) % (count * spacing) + count * spacing) % (count * spacing)); this.segmentPositions[i] = z;
       this.setInstance(this.ribs, i, 0, 0, z, 1, .69, 1);
       for (let j = 0; j < 8; j++) {
         const a = j / 8 * TAU + Math.PI / 8, x = Math.cos(a) * 12.5, y = Math.sin(a) * 8.6;
         const tangent = Math.atan2(Math.cos(a) * 12.5, -Math.sin(a) * 8.6);
-        this.setInstance(this.lights, i * 8 + j, x * .975, y * .975, z - 2, 2.2, .045, .065, tangent);
+        this.setInstance(this.lights, i * 8 + j, x * .975, y * .975, z, .9, .035, .045, tangent);
       }
       let cable = 0;
       for (const x of [-11.8, 11.8]) for (const y of [-3.8, 3.8]) {
-        this.setInstance(this.pipes, i * 4 + cable, x, y, z - 4, .24, .24, 8.8);
-        this.setInstance(this.cableLights, i * 4 + cable, x - Math.sign(x) * .16, y, z - 4, .035, .035, 8.8); cable++;
+        this.setInstance(this.pipes, i * 4 + cable, x, y, z - spacing / 2, .12, .12, spacing + .6);
+        this.setInstance(this.cableLights, i * 4 + cable, x - Math.sign(x) * .09, y, z - spacing / 2, .026, .026, spacing + .6); cable++;
       }
     }
     for (const mesh of [this.ribs, this.lights, this.pipes, this.cableLights]) mesh.instanceMatrix.needsUpdate = true;
@@ -251,6 +297,9 @@ export class FlightWorld {
     else { this.ship.position.set(player.x, player.y, 4); this.ship.rotation.z = THREE.MathUtils.damp(this.ship.rotation.z, this.bank * 1.4 - steer * .07, 11, dt); this.ship.rotation.x = THREE.MathUtils.damp(this.ship.rotation.x, this.courseRotation(4).x + (player.ty - player.y) * .08, 8, dt); this.ship.rotation.y = THREE.MathUtils.damp(this.ship.rotation.y, this.courseRotation(4).y - steer * .025, 8, dt); }
     const fov = (portrait ? 70 : 59) + (this.reduced ? 0 : this.nitro * 15 + Math.min(5, Math.max(0, speed - 42) * .085));
     this.camera.fov = THREE.MathUtils.damp(this.camera.fov, fov, 5, dt); this.camera.updateProjectionMatrix();
+    const skyHeight = 1000 * Math.tan(this.camera.fov * Math.PI / 360);
+    this.sky.scale.set(skyHeight * this.camera.aspect * 1.01, skyHeight * 1.01, 1);
+    this.skyMaterial.uniforms.aspect.value = this.camera.aspect; this.skyMaterial.uniforms.time.value = this.reduced ? 0 : this.time;
     const z = Math.max(20, 4 + 11.5 / (Math.tan(this.camera.fov * Math.PI / 360) * this.camera.aspect));
     const cameraOffset = this.courseOffset(z);
     // Follow the course exactly; smooth only the pilot's lateral motion. A

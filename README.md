@@ -1,6 +1,6 @@
 # Dodge Me
 
-An eight-pilot browser flight race through a twisting tunnel. Steer through openings, dodge rocks and beams, collect blue rings and use nitro to overtake. The 12 km race has no countdown.
+An eight-pilot browser flight race through a twisting orbital course beneath a black hole. Steer through openings, dodge rocks and beams, collect blue rings and use nitro to overtake. The 12 km race has no countdown.
 
 ## Play locally
 
