@@ -1,15 +1,19 @@
 {
-  "name": "dodge-wave",
+  "name": "dodge-me",
   "version": "1.0.0",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node rules.test.mjs && node expedition.test.mjs && node race.test.mjs && node game.test.mjs && node camera.test.mjs",
+    "build:vendor": "node build-vendor.cjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "A browser flight race through twisting tunnels, with eight racers, obstacles and nitro.",
   "devDependencies": {
     "vercel": "^50.39.0"
-  }
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  },
+  "type": "module"
 }
