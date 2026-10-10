@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import { clamp, makeExpeditionPattern } from './rules.mjs?v=cosmic-3';
+import { clamp, makeExpeditionPattern } from './rules.mjs?v=canopy-1';
 const TAU = Math.PI * 2;
 export class FlightHazards {
   constructor(world) { this.world = world; this.scene = world.scene; this.live = []; this.rockGeometry = new THREE.IcosahedronGeometry(1, 1); this.rockMaterial = new THREE.MeshStandardMaterial({ color: 0x514a48, roughness: .9, metalness: .15 }); this.pickupGeometry = new THREE.TorusGeometry(.82, .07, 8, 40); }

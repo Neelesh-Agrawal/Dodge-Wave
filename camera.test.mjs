@@ -52,14 +52,28 @@ for (const [w,h] of [[390,844],[360,800],[1440,900]]) {
 
 
 
-// Open orbital architecture must not enclose the celestial background. Check
-// the real station builder and verify hidden legacy geometry is never updated.
-const world={dummy:new THREE.Object3D(),curveCache:new Map(),distance:1400,nitro:0,courseCenter:FlightWorld.prototype.courseCenter,courseOffset:FlightWorld.prototype.courseOffset,courseRotation:FlightWorld.prototype.courseRotation,setInstance:FlightWorld.prototype.setInstance};
-Object.assign(world,{boxGeometry:new THREE.BoxGeometry(),materials:{armor:new THREE.MeshStandardMaterial(),dark:new THREE.MeshStandardMaterial(),copper:new THREE.MeshStandardMaterial(),cyan:new THREE.MeshStandardMaterial(),amber:new THREE.MeshStandardMaterial()},scene:new THREE.Scene(),makeTunnelSurface(){this.tunnelSurface=new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshBasicMaterial());},updateTunnelSurface(){throw Error('Hidden surface must not rebuild every frame');}});
+// Continuous enclosure follows the actual course; the upper sector is glazed.
+const world={dummy:new THREE.Object3D(),curveCache:new Map(),distance:1400,nitro:0,courseCenter:FlightWorld.prototype.courseCenter,courseOffset:FlightWorld.prototype.courseOffset,courseRotation:FlightWorld.prototype.courseRotation,setInstance:FlightWorld.prototype.setInstance,makeTunnelSurface:FlightWorld.prototype.makeTunnelSurface,updateTunnelSurface:FlightWorld.prototype.updateTunnelSurface};
+Object.assign(world,{boxGeometry:new THREE.BoxGeometry(),metalTexture:null,materials:{armor:new THREE.MeshStandardMaterial(),dark:new THREE.MeshStandardMaterial(),copper:new THREE.MeshStandardMaterial(),cyan:new THREE.MeshStandardMaterial(),amber:new THREE.MeshStandardMaterial()},scene:new THREE.Scene()});
 FlightWorld.prototype.makeStation.call(world);
-assert.equal(world.tunnelSurface.visible,false,'The racing course must remain open to space');
+assert.equal(world.tunnelSurface.visible,true);
+assert.equal(world.tunnelSurface.geometry.groups.length,2,'Hull and canopy use only two surface draw calls');
+assert.equal(world.tunnelSurface.material[0].transparent,false);
+assert.equal(world.tunnelSurface.material[1].transparent,true);
 assert.equal(world.ribs.count,20);assert.equal(world.segmentSpacing,12);
 world.streaks={geometry:{attributes:{position:{array:new Float32Array(6)}}},material:{opacity:0}};world.streakData=[{x:0,y:0,z:-60}];
-FlightWorld.prototype.updateArchitecture.call(world,.016,50,0);
-for(const mesh of [world.ribs,world.lights,world.pipes,world.cableLights]) for(const value of mesh.instanceMatrix.array) assert.ok(Number.isFinite(value),'Orbital track transforms remain finite');
-console.log('Open orbital course, stable track transforms and hidden-surface budget pass');
+for(const distance of [0,1400,5800,11980]) {
+ world.distance=distance; FlightWorld.prototype.updateArchitecture.call(world,.016,50,0);
+ const geometry=world.tunnelSurface.geometry, positions=geometry.attributes.position;
+ for(let row=0;row<world.tunnelRows;row++) {
+  const first=row*(world.tunnelRadial+1),last=first+world.tunnelRadial;
+  for(const axis of ['getX','getY','getZ']) assert.equal(positions[axis](first),positions[axis](last),'No seam around the enclosed tunnel');
+ }
+ for(const value of positions.array) assert.ok(Number.isFinite(value));
+ for(const mesh of [world.ribs,world.lights,world.pipes,world.cableLights]) for(const value of mesh.instanceMatrix.array) assert.ok(Number.isFinite(value));
+}
+world.materials.copper=new THREE.MeshStandardMaterial();world.materials.glass=new THREE.MeshStandardMaterial();world.box=FlightWorld.prototype.box;
+FlightWorld.prototype.makeRivals.call(world);
+assert.equal(new Set(world.rivalShips.map(s=>s.children[0].material.color.getHex())).size,7,'Every opponent has a distinct livery');
+assert.equal(new Set(world.rivalShips.map(s=>s.children[1].geometry)).size,3,'Three different wing silhouettes');
+console.log('Enclosed hull/canopy, seamless curved geometry, seven liveries and three ship silhouettes pass');

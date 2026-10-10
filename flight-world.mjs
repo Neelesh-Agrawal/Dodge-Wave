@@ -3,8 +3,8 @@ import { EffectComposer } from './vendor/addons/postprocessing/EffectComposer.js
 import { RenderPass } from './vendor/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/addons/postprocessing/OutputPass.js';
-import { randomSource, clamp } from './rules.mjs?v=cosmic-3';
-import { courseCenter as routeCenter, courseSlope } from './race.mjs?v=cosmic-3';
+import { randomSource, clamp } from './rules.mjs?v=canopy-1';
+import { courseCenter as routeCenter, courseSlope } from './race.mjs?v=canopy-1';
 const TAU = Math.PI * 2;
 export class FlightWorld {
   constructor(canvas, { quality = true, reduced = false } = {}) {
@@ -136,16 +136,16 @@ export class FlightWorld {
   }
   makeStation() {
     this.rng = randomSource(6917); const count = 20; this.segmentSpacing = 12; this.segmentPositions = Array.from({ length: count }, (_, i) => 24 - i * this.segmentSpacing);
-    const ringGeo = new THREE.TorusGeometry(12.7, .12, 6, 64);
+    const ringGeo = new THREE.TorusGeometry(12.7, .24, 6, 64);
     this.ribs = new THREE.InstancedMesh(ringGeo, this.materials.armor, count); this.ribs.frustumCulled = false; this.scene.add(this.ribs);
-    // No enclosed wall or fading panels: open rings reveal the cosmic horizon.
-    this.makeTunnelSurface(); this.tunnelSurface.visible = false;
+    // A sealed canopy preserves the space view above a continuous armored hull.
+    this.makeTunnelSurface();
     this.lights = new THREE.InstancedMesh(this.boxGeometry, this.materials.cyan, count * 8); this.lights.frustumCulled = false; this.scene.add(this.lights);
     this.dummy = new THREE.Object3D();
     // Sectioned cable trunks follow the actual bends, with no straight pipes
     // cutting across the flight corridor.
-    this.pipes = new THREE.InstancedMesh(this.boxGeometry, this.materials.copper, count * 4); this.pipes.frustumCulled = false; this.scene.add(this.pipes);
-    this.cableLights = new THREE.InstancedMesh(this.boxGeometry, this.materials.amber, count * 4); this.cableLights.frustumCulled = false; this.scene.add(this.cableLights);
+    this.pipes = new THREE.InstancedMesh(this.boxGeometry, this.materials.copper, count * 7); this.pipes.frustumCulled = false; this.scene.add(this.pipes);
+    this.cableLights = new THREE.InstancedMesh(this.boxGeometry, this.materials.amber, count * 7); this.cableLights.frustumCulled = false; this.scene.add(this.cableLights);
     this.shafts = new THREE.Group(); this.scene.add(this.shafts);
     const shaftMat = new THREE.MeshBasicMaterial({ color: 0x35c9e0, transparent: true, opacity: .035, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
     for (let i = 0; i < 8; i++) { const shaft = new THREE.Mesh(new THREE.ConeGeometry(3.2, 30, 24, 1, true), shaftMat); shaft.rotation.z = i % 2 ? .6 : -.6; shaft.position.set(i % 2 ? -10 : 10, 0, -i * 27); this.shafts.add(shaft); }
@@ -155,18 +155,21 @@ export class FlightWorld {
   makeTunnelSurface() {
     const radial = 32, rows = 83, stride = radial + 1;
     this.tunnelRows = rows; this.tunnelRadial = radial;
-    const positions = new Float32Array(rows * stride * 3), normals = new Float32Array(positions.length), uv = new Float32Array(rows * stride * 2), indices = [];
+    const positions = new Float32Array(rows * stride * 3), normals = new Float32Array(positions.length), uv = new Float32Array(rows * stride * 2), solid = [], glass = [];
     for (let row = 0; row < rows - 1; row++) for (let j = 0; j < radial; j++) {
       const a = row * stride + j, b = a + stride;
+      const indices = Math.sin((j + .5) / radial * TAU) > .7 ? glass : solid;
       indices.push(a, a + 1, b, a + 1, b + 1, b);
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
     geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3).setUsage(THREE.DynamicDrawUsage));
     geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2).setUsage(THREE.DynamicDrawUsage));
-    geometry.setIndex(indices);
-    const material = this.materials.dark.clone(); material.side = THREE.DoubleSide; material.color.setHex(0x425b6b); material.roughness = .78; material.metalness = .38;
-    this.tunnelSurface = new THREE.Mesh(geometry, material); this.tunnelSurface.frustumCulled = false; this.scene.add(this.tunnelSurface);
+    geometry.setIndex([...solid, ...glass]);
+    geometry.addGroup(0, solid.length, 0); geometry.addGroup(solid.length, glass.length, 1);
+    const material = new THREE.MeshLambertMaterial({color:0x21495c,map:this.metalTexture,emissive:0x07151c,side:THREE.DoubleSide});
+    const canopy = new THREE.MeshLambertMaterial({color:0x387a96,map:this.metalTexture,emissive:0x123342,emissiveIntensity:.3,transparent:true,opacity:.38,side:THREE.DoubleSide,depthWrite:false});
+    this.tunnelSurface = new THREE.Mesh(geometry, [material, canopy]); this.tunnelSurface.frustumCulled = false; this.scene.add(this.tunnelSurface);
     this.updateTunnelSurface();
   }
   updateTunnelSurface() {
@@ -213,18 +216,24 @@ export class FlightWorld {
   }
   makeRivals() {
     const colors = [0xb99aff, 0x59ffe0, 0xff91c0, 0xffbf61, 0x79baff, 0xe8ea91, 0xf68561];
-    // Distant racers keep the same silhouette using four shared-geometry meshes
-    // each, rather than cloning every collar, light and detail of the hero ship.
+    // Seven bright liveries and three wing plans remain readable at race distance.
     const hull = new THREE.CapsuleGeometry(.34, 1.7, 4, 8);
     const shape = new THREE.Shape(); shape.moveTo(0, -1.65); shape.lineTo(.38, -.65); shape.lineTo(1.42, .83); shape.lineTo(.95, 1.05); shape.lineTo(0, .4); shape.lineTo(-.95, 1.05); shape.lineTo(-1.42, .83); shape.lineTo(-.38, -.65); shape.closePath();
     const wings = new THREE.ExtrudeGeometry(shape, {depth:.09, bevelEnabled:false, steps:1}); wings.rotateX(Math.PI / 2);
     const canopy = new THREE.SphereGeometry(.3, 12, 8), flame = new THREE.ConeGeometry(.25, 2.4, 8, 1, true);
-    const engine = new THREE.MeshBasicMaterial({color:0x83fff0,transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
-    this.rivalShips = colors.map(color => {
-      const ship = new THREE.Group(), material = this.materials.copper.clone(); material.color.setHex(color);
+    const wingPlans = [wings];
+    for (const points of [[[0,-1.8],[.45,-.5],[1.38,-.15],[1.38,.65],[.4,.9],[0,.45],[-.4,.9],[-1.38,.65],[-1.38,-.15],[-.45,-.5]],[[0,-1.8],[1.3,.95],[.4,.65],[0,1.2],[-.4,.65],[-1.3,.95]]]) {
+      const plan=new THREE.Shape(); points.forEach(([x,y],i)=>i?plan.lineTo(x,y):plan.moveTo(x,y)); plan.closePath();
+      const geometry=new THREE.ExtrudeGeometry(plan,{depth:.12,bevelEnabled:false,steps:1}); geometry.rotateX(Math.PI/2); wingPlans.push(geometry);
+    }
+    this.rivalShips = colors.map((color,i) => {
+      const ship = new THREE.Group(), material = new THREE.MeshStandardMaterial({color,roughness:.42,metalness:.25,emissive:color,emissiveIntensity:.22});
       const body = new THREE.Mesh(hull, material); body.rotation.x = Math.PI / 2; body.position.z = -.35; ship.add(body);
-      ship.add(new THREE.Mesh(wings, material));
+      ship.add(new THREE.Mesh(wingPlans[i%3], material));
+      const stripe=new THREE.MeshBasicMaterial({color});
+      for(const side of [-1,1]) {const fin=this.box(.09,.48+i%3*.12,.8,stripe,side*(i%3===1?1.16:.7),.25,.45); fin.rotation.z=side*.22; ship.add(fin);}
       const glass = new THREE.Mesh(canopy, this.materials.glass); glass.scale.set(.75,.75,1.8); glass.position.set(0,.3,-.65); ship.add(glass);
+      const engine=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
       const exhaust = new THREE.Mesh(flame,engine); exhaust.rotation.x = Math.PI / 2; exhaust.position.z = 2.1; ship.add(exhaust);
       ship.visible = false; this.scene.add(ship); return ship;
     });
@@ -239,6 +248,7 @@ export class FlightWorld {
   }
   updateArchitecture(dt, speed, stage) {
     this.curveCache.clear(); const count = this.segmentPositions.length, spacing = this.segmentSpacing;
+    this.updateTunnelSurface();
     for (let i = 0; i < count; i++) {
       // Absolute-distance placement means pause, reset and changing speed cannot
       // detach the tunnel from its hazards or competitors.
@@ -251,8 +261,13 @@ export class FlightWorld {
       }
       let cable = 0;
       for (const x of [-11.8, 11.8]) for (const y of [-3.8, 3.8]) {
-        this.setInstance(this.pipes, i * 4 + cable, x, y, z - spacing / 2, .12, .12, spacing + .6);
-        this.setInstance(this.cableLights, i * 4 + cable, x - Math.sign(x) * .09, y, z - spacing / 2, .026, .026, spacing + .6); cable++;
+        this.setInstance(this.pipes, i * 7 + cable, x, y, z - spacing / 2, .12, .12, spacing + .6);
+        this.setInstance(this.cableLights, i * 7 + cable, x - Math.sign(x) * .09, y, z - spacing / 2, .026, .026, spacing + .6); cable++;
+      }
+      for(const angle of [Math.PI/4,Math.PI/2,Math.PI*3/4]) {
+        const x=Math.cos(angle)*12.6,y=Math.sin(angle)*8.6;
+        this.setInstance(this.pipes,i*7+cable,x,y,z-spacing/2,.18,.18,spacing+.6);
+        this.setInstance(this.cableLights,i*7+cable,x*.99,y*.99,z-spacing/2,.025,.025,spacing+.6); cable++;
       }
     }
     for (const mesh of [this.ribs, this.lights, this.pipes, this.cableLights]) mesh.instanceMatrix.needsUpdate = true;

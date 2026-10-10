@@ -1,6 +1,6 @@
 # Dodge Me
 
-An eight-pilot browser flight race through a twisting orbital course beneath a black hole. Steer through openings, dodge rocks and beams, collect blue rings and use nitro to overtake. The 12 km race has no countdown.
+An eight-pilot browser flight race through a twisting glass-roofed space tunnel beneath a black hole. Steer through openings, dodge rocks and beams, collect blue rings and use nitro to overtake. The 12 km race has no countdown.
 
 ## Play locally
 
@@ -10,7 +10,7 @@ Serve this folder with any static HTTP server, then open index.html. For example
 python -m http.server 8771
 ```
 
-Use WASD or arrow keys to steer, Space to activate charged nitro, and Escape/P to pause. On a phone, drag on the game and tap the nitro bottle. Settings includes sound, detailed graphics and instructions.
+Use WASD or arrow keys to steer, Space to activate charged nitro, and Escape/P to pause. On a phone, drag on the game and tap the nitro flame. Settings includes sound, detailed graphics and instructions.
 
 ## Checks and dependencies
 

@@ -2,7 +2,7 @@
   "name": "dodge-me",
   "version": "1.0.0",
   "scripts": {
-    "test": "node rules.test.mjs && node expedition.test.mjs && node race.test.mjs && node game.test.mjs && node camera.test.mjs",
+    "test": "node rules.test.mjs && node expedition.test.mjs && node race.test.mjs && node game.test.mjs && node camera.test.mjs && node audio.test.mjs",
     "build:vendor": "node build-vendor.cjs"
   },
   "keywords": [],
