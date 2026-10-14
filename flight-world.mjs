@@ -33,6 +33,9 @@ export class FlightWorld {
       danger: new THREE.MeshBasicMaterial({ color: new THREE.Color(3.4, .18, .035) }),
       glass: new THREE.MeshStandardMaterial({ color: 0x063143, metalness: .92, roughness: .1, emissive: 0x176782, emissiveIntensity: .65 }),
     };
+    this.materials.paint = this.materials.copper.clone();
+    // Sector themes recolour every light strip, beacon and cable in the tunnel.
+    this.themeA = new THREE.Color(0x36e4d3); this.themeB = new THREE.Color(0xff6d12); this.tmpColor = new THREE.Color();
     this.glowTexture = this.makeGlow();
     this.makeHorizon(); this.makeStation(); this.makeShip(); this.makeRivals(); this.makeDust(); this.streaks.visible = quality;
     this.composer = new EffectComposer(this.renderer);
@@ -190,7 +193,7 @@ export class FlightWorld {
   }
   makeShip() {
     const ship = new THREE.Group(); this.ship = ship; this.scene.add(ship);
-    const main = new THREE.Mesh(new THREE.CapsuleGeometry(.35, 1.65, 6, 12), this.materials.copper); main.rotation.x = Math.PI / 2; main.position.z = -.35; ship.add(main);
+    const main = new THREE.Mesh(new THREE.CapsuleGeometry(.35, 1.65, 6, 12), this.materials.paint); main.rotation.x = Math.PI / 2; main.position.z = -.35; ship.add(main);
     const nose = new THREE.Mesh(new THREE.ConeGeometry(.36, 1.2, 8), this.materials.armor); nose.rotation.x = -Math.PI / 2; nose.position.z = -1.7; ship.add(nose);
     const glass = new THREE.Mesh(new THREE.SphereGeometry(.3, 20, 12), this.materials.glass); glass.scale.set(.75, .75, 1.8); glass.position.set(0, .3, -.65); ship.add(glass);
     ship.add(this.box(.08, .08, 1.05, this.materials.armor, 0, .5, -.65));
@@ -205,7 +208,7 @@ export class FlightWorld {
       const nozzle = this.torus(.18, .055, this.materials.cyan, 24); nozzle.position.set(side * .69, 0, 1.1); ship.add(nozzle);
       const flame = new THREE.Mesh(new THREE.ConeGeometry(.16, 2.8, 16, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(.12, .85, 1.15), transparent: true, opacity: .42, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); flame.rotation.x = Math.PI / 2; flame.position.set(side * .69, 0, 2.3); ship.add(flame); this.exhausts.push(flame);
       const glow = this.glow(0x48e9ff, .85, side * .69, 0, 1.25); glow.material.opacity=.38; ship.add(glow); this.engineGlows.push(glow);
-      const fin = this.box(.07, .7, .65, this.materials.copper, side * .69, .33, .65); fin.rotation.z = side * -.2; ship.add(fin);
+      const fin = this.box(.07, .7, .65, this.materials.paint, side * .69, .33, .65); fin.rotation.z = side * -.2; ship.add(fin);
     }
     this.shield = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), new THREE.MeshBasicMaterial({ color: 0x76fff0, transparent: true, opacity: .12, wireframe: true, blending: THREE.AdditiveBlending, depthWrite: false })); this.shield.scale.set(1.55, .8, 2.1); ship.add(this.shield);
     this.engineLight = new THREE.PointLight(0x68eaf8, 1.3, 9); this.engineLight.position.set(0, 0, 1.5); ship.add(this.engineLight);
@@ -288,8 +291,11 @@ export class FlightWorld {
     this.camera.aspect = w / h; this.camera.fov = w < h ? 70 : 59; this.camera.updateProjectionMatrix();
     this.composer?.setPixelRatio(Math.min(devicePixelRatio, this.quality ? 1.2 : .8)); this.composer?.setSize(w, h);
   }
+  setTheme(a, b) { this.themeA.set(a); this.themeB.set(b); }
+  setPaint(color) { this.materials.paint.color.set(color); }
   setQuality(value) { this.quality = value; this.streaks.visible = value; this.resize(); }
   update(dt, data) {
+    const k = 1 - Math.exp(-dt * 1.5); this.materials.cyan.emissive.lerp(this.themeA, k); this.materials.cyan.color.lerp(this.tmpColor.copy(this.themeA).lerp(new THREE.Color(1, 1, 1), .4), k); this.materials.amber.emissive.lerp(this.themeB, k); this.materials.amber.color.lerp(this.themeB, k); this.streaks.material.color.lerp(this.themeA, k);
     this.time += dt; const { player, state, speed, stage = 0, phase = 0, invulnerable = 0, shake = 0, steer = 0 } = data;
     this.distance = Number.isFinite(data.distance) ? data.distance : this.distance + dt * speed;
     this.nitro = THREE.MathUtils.damp(this.nitro, phase > 0 ? 1 : 0, phase > 0 ? 9 : 5, dt);
@@ -315,18 +321,20 @@ export class FlightWorld {
     const skyHeight = 1000 * Math.tan(this.camera.fov * Math.PI / 360);
     this.sky.scale.set(skyHeight * this.camera.aspect * 1.01, skyHeight * 1.01, 1);
     this.skyMaterial.uniforms.aspect.value = this.camera.aspect; this.skyMaterial.uniforms.time.value = this.reduced ? 0 : this.time;
-    const z = Math.max(20, 4 + 11.5 / (Math.tan(this.camera.fov * Math.PI / 360) * this.camera.aspect));
+    // Portrait screens frame the ship's reachable lane rather than the whole hull,
+    // so the craft stays readable on phones.
+    const z = Math.max(20, 4 + (portrait ? 5.5 : 11.5) / (Math.tan(this.camera.fov * Math.PI / 360) * this.camera.aspect));
     const cameraOffset = this.courseOffset(z);
     // Follow the course exactly; smooth only the pilot's lateral motion. A
     // delayed course-center camera can drift through a wall at racing speed.
-    this.chaseX = THREE.MathUtils.damp(this.chaseX ?? 0, menu ? -2.3 : player.x * .32, 4, dt);
-    this.chaseY = THREE.MathUtils.damp(this.chaseY ?? 3.2, menu ? 4.7 : 3.2 + player.y * .16, 4, dt);
+    this.chaseX = THREE.MathUtils.damp(this.chaseX ?? 0, menu ? -2.3 : player.x * (portrait ? .85 : .32), 4, dt);
+    this.chaseY = THREE.MathUtils.damp(this.chaseY ?? 3.2, menu ? 4.7 : 3.2 + player.y * (portrait ? .5 : .16), 4, dt);
     this.camera.position.x = cameraOffset.x + this.chaseX;
     this.camera.position.y = cameraOffset.y + this.chaseY;
     this.camera.position.z = z;
     const j = this.reduced ? 0 : shake * .22;
     const ahead = this.courseOffset(-34);
-    this.look.set(ahead.x + (menu ? 0 : player.x * .1), ahead.y + (menu ? 0 : player.y * .08), -34);
+    this.look.set(ahead.x + (menu ? 0 : player.x * (portrait ? .6 : .1)), ahead.y + (menu ? 0 : player.y * (portrait ? .3 : .08)), -34);
     this.look.x += (Math.random() - .5) * j; this.look.y += (Math.random() - .5) * j;
     this.camera.lookAt(this.look); if (!this.reduced && !menu) this.camera.rotateZ(this.bank * .75 + clamp(-steer * .0025, -.025, .025));
     this.shield.visible = phase > 0 || (invulnerable > 0 && Math.floor(this.time * 9) % 2 === 0); this.shield.rotation.z += dt * 1.5;

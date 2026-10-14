@@ -14,7 +14,7 @@ for (const [w,h] of [[390,844],[360,800],[1440,900]]) {
 
  let minX=1,maxX=-1,minY=1,maxY=-1;
 
- for(let distance=0;distance<=FINISH_DISTANCE;distance+=40) {
+ for(let distance=0;distance<=12000;distance+=40) {
 
   const origin=courseCenter(distance), ahead=courseCenter(distance+38), slope=courseSlope(distance), nextSlope=courseSlope(distance+65);
 
@@ -24,19 +24,19 @@ for (const [w,h] of [[390,844],[360,800],[1440,900]]) {
 
    const camera=new THREE.PerspectiveCamera((w<h?70:59)+nitro*15,w/h,.15,650);
 
-   const z=Math.max(20,4+11.5/(Math.tan(camera.fov*Math.PI/360)*camera.aspect)), behind=courseCenter(distance+4-z);
+   const z=Math.max(20,4+(w<h?5.5:11.5)/(Math.tan(camera.fov*Math.PI/360)*camera.aspect)), behind=courseCenter(distance+4-z);
 
-   camera.position.set(behind.x-origin.x+x*.32,behind.y-origin.y+3.2+y*.16,z);
+   camera.position.set(behind.x-origin.x+x*(w<h?.85:.32),behind.y-origin.y+3.2+y*(w<h?.5:.16),z);
 
    assert.ok(((camera.position.x-(behind.x-origin.x))/12)**2+((camera.position.y-(behind.y-origin.y))/8.6)**2<.6,'Chase camera must stay within the orbital guide hoops');
 
-   camera.lookAt(ahead.x-origin.x+x*.1,ahead.y-origin.y+y*.08,-34); camera.rotateZ(bank*.75); camera.updateMatrixWorld();
+   camera.lookAt(ahead.x-origin.x+x*(w<h?.6:.1),ahead.y-origin.y+y*(w<h?.3:.08),-34); camera.rotateZ(bank*.75); camera.updateMatrixWorld();
 
    for(const wing of [-1.42,0,1.42]) {
 
     const p=new THREE.Vector3(x+wing*Math.cos(bank*1.4),y+wing*Math.sin(bank*1.4),4).project(camera);
 
-    assert.ok(Math.abs(p.x)<1&&Math.abs(p.y)<1,`${w}x${h}: craft clipped at ${distance}m, steering ${x},${y}, nitro ${nitro}`);
+    assert.ok(Math.abs(p.x)<1&&Math.abs(p.y)<1,`${w}x${h}: craft clipped (${p.x.toFixed(2)},${p.y.toFixed(2)}) at ${distance}m, steering ${x},${y}, nitro ${nitro}`);
 
     minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);
 
@@ -46,7 +46,7 @@ for (const [w,h] of [[390,844],[360,800],[1440,900]]) {
 
  }
 
- console.log(`${w}x${h}: all 12km turns and nitro pass, x[${minX.toFixed(2)},${maxX.toFixed(2)}] y[${minY.toFixed(2)},${maxY.toFixed(2)}]`);
+ console.log(`${w}x${h}: 12km of turns and nitro pass, x[${minX.toFixed(2)},${maxX.toFixed(2)}] y[${minY.toFixed(2)},${maxY.toFixed(2)}]`);
 
 }
 
